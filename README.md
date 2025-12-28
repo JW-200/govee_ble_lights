@@ -7,7 +7,11 @@ This repository includes the source from the orignal BLE control reposityory, as
 
 This repository should support all the original models that are supported, as well as include QOL features for other less maintained light strips (H617A and H617C)
 What works for H617A and H617C:
-- To be tested
+- On/Off
+- Brighness
+- Setting colors
+
+Segmented lighting is currently not supported.
 
 ---
 
