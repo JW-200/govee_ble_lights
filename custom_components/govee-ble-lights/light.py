@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 
 UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
 EFFECT_PARSE = re.compile("\[(\d+)/(\d+)/(\d+)/(\d+)]")
-SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199']
+SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617C']
 
 class LedCommand(IntEnum):
     """ A control command packet's type. """
@@ -119,6 +119,7 @@ class GoveeAPILight(LightEntity, dict):
 
         self._state = None
         self._brightness = None
+        self._rgb_color = None
         self.update_scenes()
 
     async def async_update(self):
@@ -163,6 +164,10 @@ class GoveeAPILight(LightEntity, dict):
     @property
     def brightness(self):
         return self._brightness
+
+    @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        return self._rgb_color
 
     @property
     def is_on(self) -> bool | None:
@@ -273,6 +278,8 @@ class GoveeBluetoothLight(LightEntity):
                                                                0x00, 0x00, 0xFF, 0x7F]))
             else:
                 commands.append(self._prepareSinglePacketData(LedCommand.COLOR, [LedMode.MANUAL, red, green, blue]))
+
+        self._rgb_color = (red, green, blue)
         if ATTR_EFFECT in kwargs:
             effect = kwargs.get(ATTR_EFFECT)
             if len(effect) > 0:
