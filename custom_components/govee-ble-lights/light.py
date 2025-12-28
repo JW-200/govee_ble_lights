@@ -286,7 +286,7 @@ class GoveeBluetoothLight(LightEntity):
             else:
                 commands.append(self._prepareSinglePacketData(LedCommand.COLOR, [LedMode.MANUAL, red, green, blue]))
 
-        self._rgb_color = (red, green, blue)
+            self._rgb_color = (red, green, blue)
         if ATTR_EFFECT in kwargs:
             effect = kwargs.get(ATTR_EFFECT)
             if len(effect) > 0:
