@@ -1,8 +1,13 @@
-# Govee BLE Lighting Integration for HomeAssistant
+# Ultimate Govee BLE Lighting Control Integration for HomeAssistant
 
 ![Govee Logo](assets/govee-logo.png)
 
 A powerful and seamless integration to control your Govee lighting devices via Govee API or BLE directly from HomeAssistant with full features support.
+This repository includes the source from the orignal BLE control reposityory, as well as patches from [cralex96](https://github.com/cralex96/govee_ble_lights) and [Rombond](https://github.com/Rombond/h617a_govee_ble_lights), credit to them for their work.
+
+This repository should support all the original models that are supported, as well as include QOL features for other less maintained light strips (H617A and H617C)
+What works for H617A and H617C:
+- To be tested
 
 ---
 
