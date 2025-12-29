@@ -11,6 +11,7 @@ Here is a compatability table of different light models.
 |-------|--------------|-------------------|--------|
 | H617A | ✅           | ✅                | ✅     |
 | H617C | ✅           | ✅                | ✅     |
+| more..| ✅           | ✅                | ✅     |
 
 Segmented lighting is currently not supported.
 
