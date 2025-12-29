@@ -1,15 +1,16 @@
-# Ultimate Govee BLE Lighting Control Integration for HomeAssistant
+# Ultimate BLE Lighting Control Integration for HomeAssistant
+![Home Assistant](https://img.shields.io/badge/home%20assistant-%2341BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white)
+<img src="assets/govee-logo.png" alt="Govee Logo" width="125">
 
-![Govee Logo](assets/govee-logo.png)
-
-A powerful and seamless integration to control your Govee lighting devices via Govee API or BLE directly from HomeAssistant with full features support.
+A powerful and seamless integration to control your Govee lighting devices via Govee API or BLE directly from HomeAssistant.
 This repository includes the source from the orignal BLE control reposityory, as well as patches from [cralex96](https://github.com/cralex96/govee_ble_lights) and [Rombond](https://github.com/Rombond/h617a_govee_ble_lights), credit to them for their work.
 
-This repository should support all the original models that are supported, as well as include QOL features for other less maintained light strips (H617A and H617C)
-What works for H617A and H617C:
-- On/Off
-- Brighness
-- Setting colors
+Here is a compatability table of different light models.
+
+| Model | Change Color | Change Brightness | On/Off |
+|-------|--------------|-------------------|--------|
+| H617A | ✅           | ✅                | ✅     |
+| H617C | ✅           | ✅                | ✅     |
 
 Segmented lighting is currently not supported.
 
@@ -37,6 +38,12 @@ Segmented lighting is currently not supported.
 - 💡 **Comprehensive Lighting Control**: Adjust brightness, change colors, or switch on/off with ease.
 
 ---
+
+## Installation
+
+- 1: (Install HACS (Home assistant comunity repository))[https://hacs.xyz/docs/use/]
+- 2: Find the "Ultimate gove BLE lights control" plugin from the HACS side menu
+- 3: Enjoy.
 
 ## Configuration
 
@@ -76,11 +83,11 @@ If you're facing issues with the integration, consider the following steps:
 
 - **Found an Issue?** 
    
-   Raise it in the [Issues section](https://github.com/Beshelmek/govee_ble_lights/issues) of this repository.
+   Raise it in the [Issues section](https://github.com/Laserology/govee_ble_lights/issues) of this repository.
 
 - **Device support**:
 
-   Almost every Govee device has its own BLE message protocol. If you have an Android smartphone and your device is not supported, please contact me on [Telegram](https://t.me/Beshelmek).
+   Almost every Govee device has its own BLE message protocol. If you find a model that doesn't work or has bugs, please report an issue here.
 
 - **Contributions**:
 
