@@ -1,4 +1,9 @@
 {
+  "domain": "ultimate_govee_light_ble",
   "name": "Ultimate Govee Light Control (BLE)",
   "render_readme": true
+  "codeowners": ["@Laserology"],
+  "dependencies": ["bluetooth"],
+  "documentation": "https://github.com/Laserology/govee_ble_lights/",
+  "issue_tracker": "https://github.com/Laserology/govee_ble_lights/issues",
 }
