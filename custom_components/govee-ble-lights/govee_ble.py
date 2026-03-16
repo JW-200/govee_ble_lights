@@ -3,10 +3,14 @@ This file contains all functionality pertaining to Govee BLE lights, including d
 """
 
 from enum import IntEnum
+import asyncio
+import logging
 import array
 
-from bleak import BleakClient
 import bleak_retry_connector as brc
+from bleak import BleakClient
+
+_LOGGER = logging.getLogger(__name__)
 
 class GoveeBLE:
     """ This class is used to connect to and control Govee branded BLE LED lights. """
@@ -93,8 +97,11 @@ class GoveeBLE:
         additional_buffer[19] = GoveeBLE.sign_payload(additional_buffer[0:19])
         result.append(additional_buffer)
 
-        for r in result:
+        # https://github.com/Jaano/govee_lights/commit/a9ded50ca6b341a30a02aaf22970f4b8be28d871#diff-cb5033302ec76b56b44c29678bc2d1f03472d762cae718fe31cb8d934eb447b7R161
+        for i, r in enumerate(result):
+            _LOGGER.debug("Sending multi-packet frame %d/%d: %s", i + 1, len(result), r.tobytes().hex())
             await GoveeBLE.send_single_frame(client, r)
+            await asyncio.sleep(0.05)
 
     @staticmethod
     async def send_single_packet(client: BleakClient, cmd, payload):
@@ -137,6 +144,7 @@ class GoveeBLE:
             await client.connect()
             retry += 1
 
+        _LOGGER.debug("Writing frame: %s", bytes(frame).hex())
         await client.write_gatt_char(GoveeBLE.UUID_CONTROL_CHARACTERISTIC, frame, False)
 
     @staticmethod
