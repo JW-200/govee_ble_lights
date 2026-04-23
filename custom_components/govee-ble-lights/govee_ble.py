@@ -23,6 +23,7 @@ class GoveeBLE:
         POWER = 0x01
         BRIGHTNESS = 0x04
         COLOR = 0x05
+        SEGMENT = 0xA5
 
     class LEDMode(IntEnum):
         """
@@ -33,7 +34,13 @@ class GoveeBLE:
         SCENES = 0x05
         SEGMENTS = 0x15
 
+    class LEDFrameType(IntEnum):
+        """ The type of a BLE frame. """
+        REQUEST = 0xAA
+        COMMAND = 0x33
+    
     BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
+    BLE_UUID_STATUS_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b10'
 
     BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
     BLE_PERCENT_MODELS = ['H6199', 'H617A', 'H617C', 'H618C']
@@ -132,12 +139,11 @@ class GoveeBLE:
         await GoveeBLE.send_single_frame(client, frame)
 
     @staticmethod
-    async def send_single_packet(client: BleakClient, cmd, payload):
+    async def send_single_packet(client: BleakClient, cmd, payload, frame_type=LEDFrameType.COMMAND):
         """
         Creates, signs, and sends a complete BLE packet to the device.
         Functions according to the input command and payload.
         """
-
         if not isinstance(cmd, int):
             raise ValueError('Invalid command')
         if not isinstance(payload, bytes) and not (
@@ -149,7 +155,7 @@ class GoveeBLE:
         cmd = cmd & 0xFF
         payload = bytes(payload)
 
-        frame = bytes([0x33, cmd]) + bytes(payload)
+        frame = bytes([frame_type.value, cmd]) + bytes(payload)
         # pad frame data to 19 bytes (plus checksum)
         frame += bytes([0] * (19 - len(frame)))
 
@@ -161,6 +167,28 @@ class GoveeBLE:
         frame += bytes([GoveeBLE.sign_payload(frame)])
 
         await GoveeBLE.send_single_frame(client, frame)
+
+    @staticmethod
+    def verify_frame(frame):
+        """Verify the checksum on a received frame."""
+        if isinstance(frame, bytearray):
+            frame = bytes(frame)
+        if len(frame) < 3:
+            return False
+        return GoveeBLE.sign_payload(frame[:-1]) == frame[-1]
+
+    @staticmethod
+    def parse_frame(frame):
+        """Parse a received BLE frame into header, command, and payload."""
+        if isinstance(frame, bytearray):
+            frame = bytes(frame)
+        if len(frame) < 3 or not GoveeBLE.verify_frame(frame):
+            raise ValueError('Invalid frame')
+
+        head = frame[0]
+        cmd = frame[1]
+        payload = frame[2:-1]
+        return head, cmd, payload
 
     @staticmethod
     async def send_single_frame(client: BleakClient, frame) -> None:

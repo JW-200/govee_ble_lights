@@ -60,7 +60,8 @@ class GoveeBluetoothLight(LightEntity):
         self._use_percent = self._model in GoveeBLE.BLE_PERCENT_MODELS
         self._ble_device = ble_device
         self._brightness = 255
-        self._state = True
+        self._state = False
+        self._rgb_color: tuple[int, int, int] | None = None
         self._current_effect: str | None = None
         self._effect_list: list[str] | None = None
         self._effect_map: dict[str, tuple] | None = None
@@ -144,6 +145,10 @@ class GoveeBluetoothLight(LightEntity):
         return self._brightness
 
     @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        return self._rgb_color
+
+    @property
     def is_on(self) -> bool | None:
         """Return true if light is on."""
         return self._state
@@ -164,7 +169,7 @@ class GoveeBluetoothLight(LightEntity):
             await GoveeBLE.send_single_packet(
                 self._client,
                 GoveeBLE.LEDCommand.BRIGHTNESS, # Command
-                [round(self._brightness * 100 / 255) if self._use_percent else self._brightness]) # Data
+                [int(self._brightness * 100 / 255) if self._use_percent else self._brightness]) # Data
 
         if ATTR_RGB_COLOR in kwargs:
             red, green, blue = kwargs.get(ATTR_RGB_COLOR)
@@ -224,6 +229,66 @@ class GoveeBluetoothLight(LightEntity):
         self._current_effect = EFFECT_OFF
         self._state = False
 
+    async def _handle_notification(self, sender, data):
+        self.hass.async_create_task(self._process_notification(bytes(data)))
+
+    async def _process_notification(self, frame: bytes) -> None:
+        try:
+            head, cmd, payload = GoveeBLE.parse_frame(frame)
+        except Exception:
+            return
+
+        if head != GoveeBLE.LEDFrameType.REQUEST.value:
+            return
+
+        if cmd == GoveeBLE.LEDCommand.POWER:
+            self._state = payload[0] == 0x01
+            if not self._state:
+                self._current_effect = EFFECT_OFF
+        elif cmd == GoveeBLE.LEDCommand.BRIGHTNESS:
+            self._brightness = round(payload[0] * 255 / 100) if self._use_percent else int(payload[0])
+        elif cmd == GoveeBLE.LEDCommand.COLOR:
+            if len(payload) >= 4:
+                self._rgb_color = (payload[1], payload[2], payload[3])
+                self._current_effect = EFFECT_OFF
+        elif cmd == GoveeBLE.LEDCommand.SEGMENT:
+            if len(payload) >= 5:
+                self._rgb_color = (payload[2], payload[3], payload[4])
+                self._current_effect = EFFECT_OFF
+
+        self.async_write_ha_state()
+
+    async def _register_notifications(self) -> None:
+        if self._client is None:
+            return
+        try:
+            if not self._client.is_connected:
+                await self._client.connect()
+            await self._client.start_notify(
+                GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC,
+                self._handle_notification,
+            )
+        except Exception as err:
+            _LOGGER.warning("Could not enable notifications for %s: %s", self.unique_id, err)
+
+    async def _request_device_state(self) -> None:
+        if self._client is None:
+            return
+        if not self._client.is_connected:
+            await self._client.connect()
+
+        try:
+            await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.POWER, [], GoveeBLE.LEDFrameType.REQUEST)
+            await asyncio.sleep(0.05)
+            await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.BRIGHTNESS, [], GoveeBLE.LEDFrameType.REQUEST)
+            await asyncio.sleep(0.05)
+            if self._is_segmented:
+                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.SEGMENT, [0x01], GoveeBLE.LEDFrameType.REQUEST)
+            else:
+                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.COLOR, [], GoveeBLE.LEDFrameType.REQUEST)
+        except Exception as err:
+            _LOGGER.debug("Failed to request initial device state: %s", err)
+
     async def try_connect(self) -> None:
         """ Tries to start a connection to the device. """
 
@@ -236,10 +301,13 @@ class GoveeBluetoothLight(LightEntity):
                     self.hass)
 
             except Exception:
-                asyncio.sleep(1)
+                await asyncio.sleep(1)
                 continue
 
-        # Create a background task to keep the BLE conenction active
+        await self._register_notifications()
+        await self._request_device_state()
+
+        # Create a background task to keep the BLE conennection active
         # This helps remove the delay when turning on/off lights
         self.hass.async_create_background_task(
             # We pass client here sperately because it would be bad
