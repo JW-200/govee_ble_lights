@@ -169,6 +169,28 @@ class GoveeBLE:
         await GoveeBLE.send_single_frame(client, frame)
 
     @staticmethod
+    def verify_frame(frame):
+        """Verify the checksum on a received frame."""
+        if isinstance(frame, bytearray):
+            frame = bytes(frame)
+        if len(frame) < 3:
+            return False
+        return GoveeBLE.sign_payload(frame[:-1]) == frame[-1]
+
+    @staticmethod
+    def parse_frame(frame):
+        """Parse a received BLE frame into header, command, and payload."""
+        if isinstance(frame, bytearray):
+            frame = bytes(frame)
+        if len(frame) < 3 or not GoveeBLE.verify_frame(frame):
+            raise ValueError('Invalid frame')
+
+        head = frame[0]
+        cmd = frame[1]
+        payload = frame[2:-1]
+        return head, cmd, payload
+
+    @staticmethod
     # Sends a single BLE data frame. log_frame indicates whether or not to log it.
     # Turn log_frame off when sending keepalive packets to prevent log spam.
     async def send_single_frame(client: BleakClient, frame, log_frame = True) -> None:
