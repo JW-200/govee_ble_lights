@@ -35,12 +35,12 @@ class GoveeBLE:
         SEGMENTS = 0x15
 
     class LEDFrameType(IntEnum):
-        """ The type of a BLE frame. """
+        """ The type of a BLE frame, used to determine if the device will respond or execute a command. """
         REQUEST = 0xAA
         COMMAND = 0x33
     
-    BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
     BLE_UUID_STATUS_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b10'
+    BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
 
     BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
     BLE_PERCENT_MODELS = ['H6199', 'H617A', 'H617C', 'H618C']
@@ -155,7 +155,7 @@ class GoveeBLE:
         cmd = cmd & 0xFF
         payload = bytes(payload)
 
-        frame = bytes([frame_type, cmd]) + bytes(payload)
+        frame = bytes([frame_type, cmd]) + bytes(payload) # frame type determines if the packet is a command or a request
         # pad frame data to 19 bytes (plus checksum)
         frame += bytes([0] * (19 - len(frame)))
 

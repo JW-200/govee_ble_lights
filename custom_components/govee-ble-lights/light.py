@@ -234,7 +234,7 @@ class GoveeBluetoothLight(LightEntity):
 
     async def _process_notification(self, frame: bytes) -> None:
         try:
-            head, cmd, payload = GoveeBLE.parse_frame(frame)
+            head, cmd, payload = GoveeBLE.parse_frame(frame) # Checks if frame is valid and extracts header, command and payload
         except Exception:
             return
 
@@ -251,7 +251,7 @@ class GoveeBluetoothLight(LightEntity):
             if len(payload) >= 4:
                 self._rgb_color = (payload[1], payload[2], payload[3])
                 self._current_effect = EFFECT_OFF
-        elif cmd == GoveeBLE.LEDCommand.SEGMENT: # Update color of segmented device (only first segment, which is the one we control)
+        elif cmd == GoveeBLE.LEDCommand.SEGMENT: # Update color of segmented device
             if len(payload) >= 5:
                 self._rgb_color = (payload[2], payload[3], payload[4])
                 self._current_effect = EFFECT_OFF
@@ -272,10 +272,10 @@ class GoveeBluetoothLight(LightEntity):
             await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.BRIGHTNESS, [], GoveeBLE.LEDFrameType.REQUEST) # Request brightness of device
             await asyncio.sleep(0.05)
 
-            if self._is_segmented: # Request color of device
-                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.SEGMENT, [0x01], GoveeBLE.LEDFrameType.REQUEST)
+            if self._is_segmented: # Request color of device (depending on segmented/non segmented model, the command and response format differs)
+                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.SEGMENT, [0x01], GoveeBLE.LEDFrameType.REQUEST) # Request color of non segmented device
             else:
-                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.COLOR, [], GoveeBLE.LEDFrameType.REQUEST)
+                await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.COLOR, [], GoveeBLE.LEDFrameType.REQUEST) # Request color of segmented device
         except Exception as err:
             _LOGGER.debug("Failed to request initial device state: %s", err)
 
