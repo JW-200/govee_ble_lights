@@ -261,13 +261,14 @@ class GoveeBluetoothLight(LightEntity):
         self.async_write_ha_state()
 
     async def _register_notifications(self) -> None:
-        """Enable status notifications and register _handle_notification"""
+        """Subscribe to device status updates, which are used to update the state of the home assistant entity."""
         try:
             await self._client.start_notify(GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC, self._handle_notification)
         except Exception as err:
             _LOGGER.warning("Could not enable notifications for %s: %s", self.unique_id, err)
 
-    async def _request_device_state(self) -> None:        
+    async def _request_device_state(self) -> None:
+        """Request the current state of the device. This is used to initialize the entity state on startup."""
         try:
             await GoveeBLE.send_single_packet(self._client, GoveeBLE.LEDCommand.POWER, [], GoveeBLE.LEDFrameType.REQUEST) # Request power state of device
             await asyncio.sleep(0.05)
