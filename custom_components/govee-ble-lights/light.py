@@ -230,9 +230,11 @@ class GoveeBluetoothLight(LightEntity):
         self._state = False
 
     async def _handle_notification(self, sender, data):
+        """Schedule processing of a received BLE notification without blocking."""
         self.hass.async_create_task(self._process_notification(bytes(data)))
 
     async def _process_notification(self, frame: bytes) -> None:
+        """Parse a device status frame and update entity state accordingly."""
         try:
             head, cmd, payload = GoveeBLE.parse_frame(frame) # Checks if frame is valid and extracts header, command and payload
         except Exception:
@@ -259,8 +261,9 @@ class GoveeBluetoothLight(LightEntity):
         self.async_write_ha_state()
 
     async def _register_notifications(self) -> None:
+        """Enable status notifications and register _handle_notification"""
         try:
-            await self._client.start_notify(GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC, self._handle_notification) # Register response handler for when device responds to state requests or sends updates
+            await self._client.start_notify(GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC, self._handle_notification)
         except Exception as err:
             _LOGGER.warning("Could not enable notifications for %s: %s", self.unique_id, err)
 

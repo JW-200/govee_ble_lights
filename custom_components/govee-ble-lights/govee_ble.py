@@ -170,13 +170,13 @@ class GoveeBLE:
 
     @staticmethod
     def verify_frame(frame):
-        """Verify the checksum on a received frame."""
+        """Return True if the frame checksum matches, False otherwise."""
         return GoveeBLE.sign_payload(frame[:-1]) == frame[-1] # Compare checksum of frame to calculated checksum
 
     @staticmethod
     def parse_frame(frame):
-        """Parse a received BLE frame into header, command, and payload."""
-        if len(frame) < 3 or not GoveeBLE.verify_frame(frame): # Frames must be at least 3 bytes (header, command, checksum) and have a valid checksum
+        """Validate a frame and return (head, cmd, payload); raises ValueError on invalid frames."""
+        if len(frame) < 3 or not GoveeBLE.verify_frame(frame):
             raise ValueError('Invalid frame')
 
         head = frame[0]
