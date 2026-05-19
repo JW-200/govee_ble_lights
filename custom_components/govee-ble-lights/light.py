@@ -280,7 +280,7 @@ class GoveeBluetoothLight(LightEntity):
             )
 
         # Create a background task to connect to the device
-        self.hass.async_create_task(self.try_connect(), "govee_ble_initialize")
+        self.hass.async_create_background_task(self.try_connect(), "govee_ble_initialize")
 
     @property
     def effect_list(self) -> list[str] | None:
@@ -431,11 +431,11 @@ class GoveeBluetoothLight(LightEntity):
                     GoveeBLE.LEDCommand.COLOR, # Command
                     [  # Data for segmented device
                         GoveeBLE.LEDMode.SEGMENTS,
-                        0x00,  # Segment index
+                        0x01,  # Segment index
                         red, green, blue,  # RGB values
-                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  # Reserved
+                        0x00, 0x00, 0x00, 0x00, 0x00,  # Reserved
                         0xFF,  # Full intensity
-                        0xFF    # Segment count (default to all)
+                        0x7F    # Segment count (default to all)
                     ]
                 ) # Data
             else:

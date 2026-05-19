@@ -102,13 +102,13 @@ class GoveeBLE:
 
     # UUIDs for Govee BLE characteristics
     # These are custom UUIDs used by Govee devices, not standard GATT
-    BLE_UUID_STATUS_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b-0c0d2b10'
-    BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b-0c0d2b11'
+    BLE_UUID_STATUS_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b10'
+    BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
 
     # Models that use segmented LED strips (multiple colors in one strip)
     # These devices require special multi-packet commands when controlling specific segments.
     # Ignore for now.
-    BLE_SEGMENTED_MODELS = [] # ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
+    BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
 
     # Models that expect brightness as percentage (0-100) instead of 0-255
     BLE_PERCENT_MODELS = ['H6199', 'H617A', 'H617C', 'H618C']
