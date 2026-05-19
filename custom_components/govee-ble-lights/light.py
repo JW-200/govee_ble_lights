@@ -423,6 +423,7 @@ class GoveeBluetoothLight(LightEntity):
         if ATTR_RGB_COLOR in kwargs:
             red, green, blue = kwargs.get(ATTR_RGB_COLOR)
 
+            # Ignore for now.
             if self._is_segmented:
                 # Send segment-specific color command
                 await GoveeBLE.send_single_packet(
@@ -430,11 +431,11 @@ class GoveeBluetoothLight(LightEntity):
                     GoveeBLE.LEDCommand.COLOR, # Command
                     [  # Data for segmented device
                         GoveeBLE.LEDMode.SEGMENTS,
-                        0x01,  # Segment index
+                        0x00,  # Segment index
                         red, green, blue,  # RGB values
                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  # Reserved
                         0xFF,  # Full intensity
-                        0x7F    # Segment count
+                        0xFF    # Segment count (default to all)
                     ]
                 ) # Data
             else:

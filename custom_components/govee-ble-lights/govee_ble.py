@@ -107,7 +107,8 @@ class GoveeBLE:
 
     # Models that use segmented LED strips (multiple colors in one strip)
     # These devices require special multi-packet commands when controlling specific segments.
-    BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
+    # Ignore for now.
+    BLE_SEGMENTED_MODELS = [] # ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
 
     # Models that expect brightness as percentage (0-100) instead of 0-255
     BLE_PERCENT_MODELS = ['H6199', 'H617A', 'H617C', 'H618C']
