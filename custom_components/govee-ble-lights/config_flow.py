@@ -24,10 +24,11 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
 )
 from homeassistant.config_entries import ConfigFlow
-from homeassistant.const import (CONF_ADDRESS, CONF_MODEL, CONF_TYPE)
+from homeassistant.const import CONF_ADDRESS, CONF_MODEL, CONF_TYPE
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN, CONF_TYPE_BLE
+
 
 class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
     """
@@ -70,13 +71,13 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
             _available_models: Will store available Govee models
             _available_config_types: Will store available config types
         """
-        self._config_type: str = ''
+        self._config_type: str = ""
         self._discovery_info: None = None
         self._discovered_device: None = None
         self._discovered_devices: dict[str, str] = {}
         self._available_models: list[str] = []
         self._available_config_types: dict[str, str] = {
-            CONF_TYPE_BLE: 'BLE',
+            CONF_TYPE_BLE: "BLE",
         }
 
     async def _async_load_models(self) -> None:
@@ -105,11 +106,13 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         # The jsons directory is located alongside this config_flow.py file
         jsons_path = Path(Path(__file__).parent / "jsons")
 
-        files = await self.hass.async_add_executor_job(lambda: list(jsons_path.iterdir()))
+        files = await self.hass.async_add_executor_job(
+            lambda: list(jsons_path.iterdir())
+        )
         self._available_models = sorted(f.name.replace(".json", "") for f in files)
 
     async def async_step_bluetooth(
-            self, discovery_info: BluetoothServiceInfoBleak
+        self, discovery_info: BluetoothServiceInfoBleak
     ) -> FlowResult:
         """
         Handle initial step of Bluetooth device discovery.
@@ -146,7 +149,7 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_bluetooth_confirm()
 
     async def async_step_bluetooth_confirm(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """
         Confirm Bluetooth device discovery and get user input.
@@ -185,18 +188,13 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # User submitted the form - they selected a model
             model = user_input[CONF_MODEL]
-            return self.async_create_entry(title=title, data={
-                CONF_MODEL: model
-            })
+            return self.async_create_entry(title=title, data={CONF_MODEL: model})
 
         # Prepare to show the confirmation form
         self._set_confirm_only()
 
         # Define placeholders for the confirmation dialog
-        placeholders = {
-            "name": title,
-            "model": "Device model"
-        }
+        placeholders = {"name": title, "model": "Device model"}
 
         # TODO: We could potentially infer the light model based on BLE advertisement name
         # This would require reverse-engineering the BLE name format for each Govee model
@@ -209,14 +207,16 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="bluetooth_confirm",
             description_placeholders=placeholders,
             # Schema defines what input fields to show
-            data_schema=vol.Schema({
-                # Dropdown of available Govee models
-                vol.Required(CONF_MODEL): vol.In(self._available_models)
-            }),
+            data_schema=vol.Schema(
+                {
+                    # Dropdown of available Govee models
+                    vol.Required(CONF_MODEL): vol.In(self._available_models)
+                }
+            ),
         )
 
     async def async_step_ble(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """
         Handle manual Bluetooth address configuration step.
@@ -259,11 +259,16 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                 continue
 
             # Store device name for the dropdown
-            self._discovered_devices[address] = (discovery_info.name)
+            self._discovered_devices[address] = discovery_info.name
 
         # Handle form submission
-        if (user_input is not None and CONF_ADDRESS in user_input and user_input[CONF_ADDRESS] is not None
-                and CONF_MODEL in user_input and user_input[CONF_MODEL] is not None):
+        if (
+            user_input is not None
+            and CONF_ADDRESS in user_input
+            and user_input[CONF_ADDRESS] is not None
+            and CONF_MODEL in user_input
+            and user_input[CONF_MODEL] is not None
+        ):
             address = user_input[CONF_ADDRESS]
             model = user_input[CONF_MODEL]
 
@@ -275,27 +280,27 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
 
             # Create configuration entry with the device info
             return self.async_create_entry(
-                title=self._discovered_devices[address], data={
-                    CONF_MODEL: model
-                }
+                title=self._discovered_devices[address], data={CONF_MODEL: model}
             )
 
         # No form submitted - show the form
         return self.async_show_form(
             step_id="ble",
             # Schema defines address dropdown and model dropdown
-            data_schema=vol.Schema({
-                # Dropdown of all currently discovered BLE devices
-                vol.Required(CONF_ADDRESS): vol.In(self._discovered_devices),
-                # Dropdown of available Govee models
-                vol.Required(CONF_MODEL): vol.In(self._available_models)
-            }),
+            data_schema=vol.Schema(
+                {
+                    # Dropdown of all currently discovered BLE devices
+                    vol.Required(CONF_ADDRESS): vol.In(self._discovered_devices),
+                    # Dropdown of available Govee models
+                    vol.Required(CONF_MODEL): vol.In(self._available_models),
+                }
+            ),
             # Error dict - empty unless validation fails
-            errors=errors
+            errors=errors,
         )
 
     async def async_step_user(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """
         Handle initial user-triggered configuration step.
@@ -327,8 +332,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             # Schema defines configuration type dropdown
-            data_schema=vol.Schema({
-                # Dropdown of available configuration types
-                vol.Required(CONF_TYPE): vol.In(self._available_config_types),
-            }),
+            data_schema=vol.Schema(
+                {
+                    # Dropdown of available configuration types
+                    vol.Required(CONF_TYPE): vol.In(self._available_config_types),
+                }
+            ),
         )

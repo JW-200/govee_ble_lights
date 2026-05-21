@@ -26,6 +26,7 @@ from bleak import BleakClient
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class GoveeBLE:
     """
     This class is used to connect to and control Govee branded LED lights.
@@ -59,6 +60,7 @@ class GoveeBLE:
         0x05 - Color: Set RGB color for non-segmented devices
         0xA5 - Segment: Set color for specific segments on segmented strips
         """
+
         POWER = 0x01
         BRIGHTNESS = 0x04
         COLOR = 0x05
@@ -77,6 +79,7 @@ class GoveeBLE:
 
         Note: Only MANUAL mode is fully supported for color changes.
         """
+
         MANUAL = 0x02
         MICROPHONE = 0x06
         SCENES = 0x05
@@ -97,27 +100,36 @@ class GoveeBLE:
         The frame type is the first byte that determines device behavior.
         All subsequent bytes are the actual command/data payload.
         """
+
         REQUEST = 0xAA
         COMMAND = 0x33
 
     # UUIDs for Govee BLE characteristics
     # These are custom UUIDs used by Govee devices, not standard GATT
-    BLE_UUID_STATUS_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b10'
-    BLE_UUID_CONTROL_CHARACTERISTIC = '00010203-0405-0607-0809-0a0b0c0d2b11'
+    BLE_UUID_STATUS_CHARACTERISTIC = "00010203-0405-0607-0809-0a0b0c0d2b10"
+    BLE_UUID_CONTROL_CHARACTERISTIC = "00010203-0405-0607-0809-0a0b0c0d2b11"
 
     # Models that use segmented LED strips (multiple colors in one strip)
     # These devices require special multi-packet commands when controlling specific segments.
     # Ignore for now.
-    BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C', 'H618C']
+    BLE_SEGMENTED_MODELS = [
+        "H6053",
+        "H6072",
+        "H6102",
+        "H6199",
+        "H617A",
+        "H617C",
+        "H618C",
+    ]
 
     # Models that expect brightness as percentage (0-100) instead of 0-255
-    BLE_PERCENT_MODELS = ['H6199', 'H617A', 'H617C', 'H618C']
+    BLE_PERCENT_MODELS = ["H6199", "H617A", "H617C", "H618C"]
 
     # BLE connection and packet timing parameters
     BLE_KEEPALIVE_INTERVAL = 1.0  # Seconds between keepalive packets
-    BLE_INTERFRAME_DELAY = 0.05   # Seconds delay between frames in multi-packet
-    BLE_HANDLE_RETRY = 3           # Number of connection retry attempts
-    BLE_TIMEOUT = 7                # Timeout in seconds for operations
+    BLE_INTERFRAME_DELAY = 0.05  # Seconds delay between frames in multi-packet
+    BLE_HANDLE_RETRY = 3  # Number of connection retry attempts
+    BLE_TIMEOUT = 7  # Timeout in seconds for operations
 
     @staticmethod
     async def send_multi_packet(client: BleakClient, protocol_type, header_array, data):
@@ -165,14 +177,14 @@ class GoveeBLE:
         header_length = len(header_array)
         header_offset = header_length + 4
 
-        initial_buffer = array.array('B', [0] * 20)
+        initial_buffer = array.array("B", [0] * 20)
         initial_buffer[0] = protocol_type
         initial_buffer[1] = 0
         initial_buffer[2] = 1
-        initial_buffer[4:4+header_length] = header_array
+        initial_buffer[4 : 4 + header_length] = header_array
 
         # Create the additional buffer for overflow data
-        additional_buffer = array.array('B', [0] * 20)
+        additional_buffer = array.array("B", [0] * 20)
         additional_buffer[0] = protocol_type
         additional_buffer[1] = 255  # Flag for additional packet
 
@@ -181,7 +193,7 @@ class GoveeBLE:
         # Check if data fits in initial buffer
         if len(data) <= remaining_space:
             # Data fits - just copy it into the initial buffer
-            initial_buffer[header_offset:header_offset + len(data)] = data
+            initial_buffer[header_offset : header_offset + len(data)] = data
         else:
             # Data is too large - must chunk it
             excess = len(data) - remaining_space
@@ -197,26 +209,28 @@ class GoveeBLE:
                 remainder = 17
 
             # Copy first chunk into initial buffer
-            initial_buffer[header_offset:header_offset + remaining_space] = data[0:remaining_space]
+            initial_buffer[header_offset : header_offset + remaining_space] = data[
+                0:remaining_space
+            ]
             current_index = remaining_space
 
             # Create additional chunks for overflow data
             for i in range(1, chunks + 1):
                 # Create a 17-byte chunk
-                chunk = array.array('B', [0] * 17)
+                chunk = array.array("B", [0] * 17)
                 chunk_size = remainder if i == chunks else 17
-                chunk[0:chunk_size] = data[current_index:current_index + chunk_size]
+                chunk[0:chunk_size] = data[current_index : current_index + chunk_size]
                 current_index += chunk_size
 
                 # For the last chunk, add to additional buffer
                 if i == chunks:
-                    additional_buffer[2:2 + chunk_size] = chunk[0:chunk_size]
+                    additional_buffer[2 : 2 + chunk_size] = chunk[0:chunk_size]
                 else:
                     # For intermediate chunks, create a full packet buffer
-                    chunk_buffer = array.array('B', [0] * 20)
+                    chunk_buffer = array.array("B", [0] * 20)
                     chunk_buffer[0] = protocol_type
                     chunk_buffer[1] = i  # Sequence number for this chunk
-                    chunk_buffer[2:2+chunk_size] = chunk
+                    chunk_buffer[2 : 2 + chunk_size] = chunk
                     chunk_buffer[19] = GoveeBLE.sign_payload(chunk_buffer[0:19])
                     result.append(chunk_buffer)
 
@@ -231,7 +245,12 @@ class GoveeBLE:
 
         # https://github.com/Jaano/govee_lights/commit/a9ded50ca6b341a30a02aaf22970f4b8be28d871#diff-cb5033302ec76b56b44c29678bc2d1f03472d762cae718fe31cb8d934eb447b7R161
         for i, r in enumerate(result):
-            _LOGGER.debug("Sending multi-packet frame %d/%d: %s", i + 1, len(result), r.tobytes().hex())
+            _LOGGER.debug(
+                "Sending multi-packet frame %d/%d: %s",
+                i + 1,
+                len(result),
+                r.tobytes().hex(),
+            )
             await GoveeBLE.send_single_frame(client, r)
             await asyncio.sleep(0.05)
 
@@ -262,7 +281,7 @@ class GoveeBLE:
         """
 
         # Start with the frame type byte
-        frame = bytes([0xaa])
+        frame = bytes([0xAA])
 
         # Pad frame data to 19 bytes (plus checksum makes 20 total)
         frame += bytes([0] * (19 - len(frame)))
@@ -281,7 +300,9 @@ class GoveeBLE:
         await GoveeBLE.send_single_frame(client, frame, False)
 
     @staticmethod
-    async def send_single_packet(client: BleakClient, cmd, payload, frame_type=LEDFrameType.COMMAND):
+    async def send_single_packet(
+        client: BleakClient, cmd, payload, frame_type=LEDFrameType.COMMAND
+    ):
         """
         Creates, signs, and sends a complete BLE packet to a Govee device.
 
@@ -314,16 +335,17 @@ class GoveeBLE:
         """
         # Validate command is an integer
         if not isinstance(cmd, int):
-            raise ValueError('Invalid command')
+            raise ValueError("Invalid command")
 
         # Validate payload type and content
         if not isinstance(payload, bytes) and not (
-                isinstance(payload, list) and all(isinstance(x, int) for x in payload)):
-            raise ValueError('Invalid payload')
+            isinstance(payload, list) and all(isinstance(x, int) for x in payload)
+        ):
+            raise ValueError("Invalid payload")
 
         # Payload must not exceed 17 bytes (plus checksum)
         if len(payload) > 17:
-            raise ValueError('Payload too long')
+            raise ValueError("Payload too long")
 
         # Convert command to single byte
         cmd = cmd & 0xFF
@@ -372,7 +394,9 @@ class GoveeBLE:
         This ensures packet integrity and helps filter out corrupted frames.
         """
         # Compare calculated checksum of frame (without final byte) to stored checksum
-        return GoveeBLE.sign_payload(frame[:-1]) == frame[-1]  # Compare checksum of frame to calculated checksum
+        return (
+            GoveeBLE.sign_payload(frame[:-1]) == frame[-1]
+        )  # Compare checksum of frame to calculated checksum
 
     @staticmethod
     def parse_frame(frame):
@@ -401,18 +425,18 @@ class GoveeBLE:
         """
         # Validate frame length and checksum before parsing
         if len(frame) < 3 or not GoveeBLE.verify_frame(frame):
-            raise ValueError('Invalid frame')
+            raise ValueError("Invalid frame")
 
         # Extract components from the validated frame
-        head = frame[0]           # Frame type
-        cmd = frame[1]            # Command type
-        payload = frame[2:-1]     # Data payload (excluding checksum)
+        head = frame[0]  # Frame type
+        cmd = frame[1]  # Command type
+        payload = frame[2:-1]  # Data payload (excluding checksum)
         return head, cmd, payload
 
     @staticmethod
     # Sends a single BLE data frame. log_frame indicates whether or not to log it.
     # Turn log_frame off when sending keepalive packets to prevent log spam.
-    async def send_single_frame(client: BleakClient, frame, log_frame = True) -> None:
+    async def send_single_frame(client: BleakClient, frame, log_frame=True) -> None:
         """
         Sends a pre-made BLE frame to the Govee device via GATT write.
 
@@ -525,7 +549,8 @@ class GoveeBLE:
         hass.async_create_background_task(
             # We pass client here separately because it would be bad
             # to encourage accessing it directly. Thus we pass it explicitly.
-            GoveeBLE.ensure_connection(client), "govee_ble_keepalive"
+            GoveeBLE.ensure_connection(client),
+            "govee_ble_keepalive",
         )
 
         return client
@@ -577,7 +602,7 @@ class GoveeBLE:
 
     @staticmethod
     def sign_payload(data):
-        """ 'Signs' a payload. Not sure what it does. """
+        """'Signs' a payload. Not sure what it does."""
         checksum = 0
         for b in data:
             checksum ^= b

@@ -38,6 +38,7 @@ from homeassistant.components.light import (
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import DeviceInfo
+
 # from homeassistant.helpers.storage import Store
 from homeassistant.core import HomeAssistant
 
@@ -49,9 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities
+    hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities
 ):
     """
     Set up Govee BLE light entities from a config entry.
@@ -134,12 +133,7 @@ class GoveeBluetoothLight(LightEntity):
 
     _client = None  # BleakClient instance for BLE communication
 
-    def __init__(
-        self,
-        hub: Hub,
-        ble_device,
-        config_entry: ConfigEntry
-    ) -> None:
+    def __init__(self, hub: Hub, ble_device, config_entry: ConfigEntry) -> None:
         """
         Initialize a bluetooth light entity.
 
@@ -217,21 +211,26 @@ class GoveeBluetoothLight(LightEntity):
         effect_list = []
 
         # Parse each category
-        for categoryIdx, category in enumerate(self._model_data['data']['categories']):
+        for categoryIdx, category in enumerate(self._model_data["data"]["categories"]):
             # Parse each scene in the category
-            for sceneIdx, scene in enumerate(category['scenes']):
+            for sceneIdx, scene in enumerate(category["scenes"]):
                 # Parse each light effect in the scene
-                for leffectIdx, lightEffect in enumerate(scene['lightEffects']):
+                for leffectIdx, lightEffect in enumerate(scene["lightEffects"]):
                     # Parse special effect configurations
-                    for seffectIdx, specialEffect in enumerate(lightEffect['specialEffect']):
+                    for seffectIdx, specialEffect in enumerate(
+                        lightEffect["specialEffect"]
+                    ):
                         # Skip effects not supported by this device model
-                        if 'supportSku' in specialEffect and self._model not in specialEffect['supportSku']:
+                        if (
+                            "supportSku" in specialEffect
+                            and self._model not in specialEffect["supportSku"]
+                        ):
                             continue
 
                         # Build effect name from category, scene, and optional sub-scene
-                        name = category['categoryName'] + " - " + scene['sceneName']
-                        if lightEffect['scenceName']:
-                            name += ' - ' + lightEffect['scenceName']
+                        name = category["categoryName"] + " - " + scene["sceneName"]
+                        if lightEffect["scenceName"]:
+                            name += " - " + lightEffect["scenceName"]
 
                         # Handle duplicate effect names with counters
                         unique_name = name
@@ -242,7 +241,10 @@ class GoveeBluetoothLight(LightEntity):
 
                         # Store the effect name and its internal indexes
                         self._effect_map[unique_name] = (
-                            categoryIdx, sceneIdx, leffectIdx, seffectIdx
+                            categoryIdx,
+                            sceneIdx,
+                            leffectIdx,
+                            seffectIdx,
                         )
                         effect_list.append(unique_name)
 
@@ -275,12 +277,13 @@ class GoveeBluetoothLight(LightEntity):
         except Exception as err:
             # Log error but continue - effects are optional
             _LOGGER.error(
-                "Failed to load effect list for model %s: %s",
-                self._model, err
+                "Failed to load effect list for model %s: %s", self._model, err
             )
 
         # Create a background task to connect to the device
-        self.hass.async_create_background_task(self.try_connect(), "govee_ble_initialize")
+        self.hass.async_create_background_task(
+            self.try_connect(), "govee_ble_initialize"
+        )
 
     @property
     def effect_list(self) -> list[str] | None:
@@ -400,9 +403,7 @@ class GoveeBluetoothLight(LightEntity):
         # Effect data should be loaded before activation
         if ATTR_EFFECT not in kwargs:
             await GoveeBLE.send_single_packet(
-                self._client,
-                GoveeBLE.LEDCommand.POWER,
-                [0x1]
+                self._client, GoveeBLE.LEDCommand.POWER, [0x1]
             )
             self._state = True
 
@@ -413,10 +414,14 @@ class GoveeBluetoothLight(LightEntity):
             # Some models require a percentage instead of the raw value of a byte.
             await GoveeBLE.send_single_packet(
                 self._client,
-                GoveeBLE.LEDCommand.BRIGHTNESS, # Command
+                GoveeBLE.LEDCommand.BRIGHTNESS,  # Command
                 [  # Data
-                    round(self._brightness * 100 / 255) if self._use_percent else self._brightness
-                ]
+                    (
+                        round(self._brightness * 100 / 255)
+                        if self._use_percent
+                        else self._brightness
+                    )
+                ],
             )
 
         # Handle RGB color setting
@@ -427,26 +432,34 @@ class GoveeBluetoothLight(LightEntity):
                 # Send segment-specific color command
                 await GoveeBLE.send_single_packet(
                     self._client,
-                    GoveeBLE.LEDCommand.COLOR, # Command
+                    GoveeBLE.LEDCommand.COLOR,  # Command
                     [  # Data for segmented device
                         GoveeBLE.LEDMode.SEGMENTS,
                         0x01,  # Segment index
-                        red, green, blue,  # RGB values
-                        0x00, 0x00, 0x00, 0x00, 0x00,  # Reserved
+                        red,
+                        green,
+                        blue,  # RGB values
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,
+                        0x00,  # Reserved
                         0xFF,  # Full intensity
-                        0x7F    # Segment count (default to all)
-                    ]
-                ) # Data
+                        0x7F,  # Segment count (default to all)
+                    ],
+                )  # Data
             else:
                 # Send standard RGB color command
                 await GoveeBLE.send_single_packet(
                     self._client,
-                    GoveeBLE.LEDCommand.COLOR, # Command
+                    GoveeBLE.LEDCommand.COLOR,  # Command
                     [  # Data for non-segmented device
                         GoveeBLE.LEDMode.MANUAL,  # Mode
-                        red, green, blue  # RGB values
-                    ]
-                ) # Data
+                        red,
+                        green,
+                        blue,  # RGB values
+                    ],
+                )  # Data
 
             # Update entity state
             self._rgb_color = (red, green, blue)
@@ -459,7 +472,7 @@ class GoveeBluetoothLight(LightEntity):
             _LOGGER.debug(
                 "Effect map loaded: %s, size: %d",
                 self._effect_map is not None,
-                len(self._effect_map) if self._effect_map else 0
+                len(self._effect_map) if self._effect_map else 0,
             )
 
             if not effect:
@@ -471,35 +484,46 @@ class GoveeBluetoothLight(LightEntity):
             elif effect not in self._effect_map:
                 _LOGGER.warning(
                     "Effect %r not found in effect map. Available: %s",
-                    effect, list(self._effect_map.keys())[:5]
+                    effect,
+                    list(self._effect_map.keys())[:5],
                 )
             else:
                 # Get internal indexes for the effect
-                categoryIndex, sceneIndex, lightEffectIndex, specialEffectIndex = \
+                categoryIndex, sceneIndex, lightEffectIndex, specialEffectIndex = (
                     self._effect_map[effect]
+                )
                 _LOGGER.debug(
                     "Effect %r maps to indexes: cat=%d scene=%d leffect=%d seffect=%d",
-                    effect, categoryIndex, sceneIndex, lightEffectIndex, specialEffectIndex
+                    effect,
+                    categoryIndex,
+                    sceneIndex,
+                    lightEffectIndex,
+                    specialEffectIndex,
                 )
-                category = self._model_data['data']['categories'][categoryIndex]
-                scene = category['scenes'][sceneIndex]
-                lightEffect = scene['lightEffects'][lightEffectIndex]
-                specialEffect = lightEffect['specialEffect'][specialEffectIndex]
+                category = self._model_data["data"]["categories"][categoryIndex]
+                scene = category["scenes"][sceneIndex]
+                lightEffect = scene["lightEffects"][lightEffectIndex]
+                specialEffect = lightEffect["specialEffect"][specialEffectIndex]
 
                 _LOGGER.debug(
                     "Sending effect sceneParam length: %d",
-                    len(specialEffect.get('scenceParam', ''))
+                    len(specialEffect.get("scenceParam", "")),
                 )
 
                 try:
                     # Send multi-packet command with effect data
                     await GoveeBLE.send_multi_packet(
                         self._client,
-                        0xa3,  # Protocol type for scene commands
-                        array.array('B', [0x02]),  # Header
-                        array.array('B', base64.b64decode(specialEffect['scenceParam'])))
+                        0xA3,  # Protocol type for scene commands
+                        array.array("B", [0x02]),  # Header
+                        array.array(
+                            "B", base64.b64decode(specialEffect["scenceParam"])
+                        ),
+                    )
 
-                    _LOGGER.debug("Effect %r sent successfully, sending power-on", effect)
+                    _LOGGER.debug(
+                        "Effect %r sent successfully, sending power-on", effect
+                    )
 
                     # Update current effect
                     self._current_effect = effect
@@ -507,9 +531,7 @@ class GoveeBluetoothLight(LightEntity):
                     # Power-on after effect data so the device activates
                     # with the effect already loaded
                     await GoveeBLE.send_single_packet(
-                        self._client,
-                        GoveeBLE.LEDCommand.POWER,
-                        [0x1]
+                        self._client, GoveeBLE.LEDCommand.POWER, [0x1]
                     )
                 except Exception as err:
                     _LOGGER.error("Failed to send effect %r: %s", effect, err)
@@ -535,9 +557,7 @@ class GoveeBluetoothLight(LightEntity):
 
         # Send power-off command
         await GoveeBLE.send_single_packet(
-            self._client,
-            GoveeBLE.LEDCommand.POWER,
-            [0x0]  # 0x00 = off
+            self._client, GoveeBLE.LEDCommand.POWER, [0x0]  # 0x00 = off
         )
 
         # Clear current effect and state
@@ -598,7 +618,9 @@ class GoveeBluetoothLight(LightEntity):
             return
 
         # Only process responses to state requests (not commands we sent)
-        if head != GoveeBLE.LEDFrameType.REQUEST:  # Only process responses to state requests
+        if (
+            head != GoveeBLE.LEDFrameType.REQUEST
+        ):  # Only process responses to state requests
             return
 
         # Handle power state change
@@ -646,14 +668,12 @@ class GoveeBluetoothLight(LightEntity):
         try:
             # Enable notifications on the status characteristic
             await self._client.start_notify(
-                GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC,
-                self._handle_notification
+                GoveeBLE.BLE_UUID_STATUS_CHARACTERISTIC, self._handle_notification
             )
         except Exception as err:
             # Log warning but continue - notifications are optional
             _LOGGER.warning(
-                "Could not enable notifications for %s: %s",
-                self.unique_id, err
+                "Could not enable notifications for %s: %s", self.unique_id, err
             )
 
     async def _request_device_state(self) -> None:
@@ -685,7 +705,7 @@ class GoveeBluetoothLight(LightEntity):
                 self._client,
                 GoveeBLE.LEDCommand.POWER,
                 [],  # Empty payload for request
-                GoveeBLE.LEDFrameType.REQUEST
+                GoveeBLE.LEDFrameType.REQUEST,
             )  # Request power state of device
             await asyncio.sleep(0.05)
 
@@ -694,7 +714,7 @@ class GoveeBluetoothLight(LightEntity):
                 self._client,
                 GoveeBLE.LEDCommand.BRIGHTNESS,
                 [],  # Empty payload for request
-                GoveeBLE.LEDFrameType.REQUEST
+                GoveeBLE.LEDFrameType.REQUEST,
             )  # Request brightness of device
             await asyncio.sleep(0.05)
 
@@ -705,7 +725,7 @@ class GoveeBluetoothLight(LightEntity):
                     self._client,
                     GoveeBLE.LEDCommand.SEGMENT,
                     [0x01],  # Segment index
-                    GoveeBLE.LEDFrameType.REQUEST
+                    GoveeBLE.LEDFrameType.REQUEST,
                 )  # Request color of non segmented device
             else:
                 # Non-segmented device uses COLOR command for color request
@@ -713,7 +733,7 @@ class GoveeBluetoothLight(LightEntity):
                     self._client,
                     GoveeBLE.LEDCommand.COLOR,
                     [],  # Empty payload for request
-                    GoveeBLE.LEDFrameType.REQUEST
+                    GoveeBLE.LEDFrameType.REQUEST,
                 )  # Request color of segmented device
         except Exception as err:
             # Log as debug - state initialization is not critical
@@ -743,9 +763,7 @@ class GoveeBluetoothLight(LightEntity):
             try:
                 # Establish connection to the device
                 self._client = await GoveeBLE.establish_connection(
-                    self._ble_device,
-                    self.unique_id,
-                    self.hass
+                    self._ble_device, self.unique_id, self.hass
                 )
             except Exception:
                 # Wait before retrying
@@ -762,5 +780,6 @@ class GoveeBluetoothLight(LightEntity):
         self.hass.async_create_background_task(
             # We pass client here separately because it would be bad
             # to encourage accessing it directly. Thus we pass it explicitly.
-            GoveeBLE.ensure_connection(self._client), "govee_ble_keepalive"
+            GoveeBLE.ensure_connection(self._client),
+            "govee_ble_keepalive",
         )
