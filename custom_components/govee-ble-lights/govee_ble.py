@@ -119,6 +119,7 @@ class GoveeBLE:
         "H6199",
         "H617A",
         "H617C",
+        "H617E",
         "H618C",
     ]
 
