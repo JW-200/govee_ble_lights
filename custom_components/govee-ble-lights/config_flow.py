@@ -13,8 +13,9 @@ The config flow supports two main paths:
 
 """
 
-from typing import Any
 from pathlib import Path
+from typing import Any
+import json
 
 from homeassistant import config_entries
 import voluptuous as vol
@@ -102,14 +103,12 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._available_models:
             return
 
-        # Get path of bundled JSON files.
-        # The jsons directory is located alongside this config_flow.py file
-        jsons_path = Path(Path(__file__).parent / "jsons")
+        # New: Use list of devices in new config file.
+        config_path = str(Path(__file__).parent) + "/config.json"
 
-        files = await self.hass.async_add_executor_job(
-            lambda: list(jsons_path.iterdir())
-        )
-        self._available_models = sorted(f.name.replace(".json", "") for f in files)
+        with open(config_path, 'r') as file:
+                config = json.load(file)
+                self._available_models = config["available_devices"]
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
