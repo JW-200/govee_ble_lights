@@ -124,7 +124,7 @@ class GoveeBLE:
     ]
 
     # Models that expect brightness as percentage (0-100) instead of 0-255
-    BLE_PERCENT_MODELS = ["H6199", "H617A", "H617C", "H618C"]
+    BLE_PERCENT_MODELS = ["H6199", "H613A", "H617A", "H617C", "H618C"]
 
     # BLE connection and packet timing parameters
     BLE_KEEPALIVE_INTERVAL = 1.0  # Seconds between keepalive packets
