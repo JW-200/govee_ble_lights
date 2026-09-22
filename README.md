@@ -139,6 +139,8 @@ Top-level values control general transitions:
 
 - `fade` — default crossfade for plain color changes (0.5 s).
 - `fade_on` — ramp-up duration when the light turns on (fades in from black).
+  A bare `light.turn_on` repaints the last known color, falling back to white
+  if none was ever learned, so the light never powers on dark.
 - `fade_off` — fade-to-black before powering off.
 
 All three default to 0 (instant) when absent.

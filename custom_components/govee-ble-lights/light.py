@@ -261,9 +261,10 @@ class GoveeBluetoothLight(LightEntity):
             effect = kwargs.get(ATTR_EFFECT)
             if not effect or effect == EFFECT_OFF:
                 # Leave effect mode, repainting the last solid color so the
-                # pattern is actually cleared.
+                # pattern is cleared; do not resume the effect on power-on.
                 await self._async_cancel_effect_task()
                 self._current_effect = EFFECT_OFF
+                self._effect_before_off = None
                 if self._rgb_color is not None:
                     await self._async_set_solid_color(*self._rgb_color)
                 else:
@@ -313,18 +314,15 @@ class GoveeBluetoothLight(LightEntity):
 
             self._rgb_color = (red, green, blue)
             self._current_effect = EFFECT_OFF
+            # A solid color supersedes any effect we would resume.
+            self._effect_before_off = None
 
-        # Power-on with no explicit target: resume the effect that was playing
-        # when the light was turned off, or re-apply the tracked pattern with
-        # a fade-in from black. Only when the light was off - a brightness-
-        # only change while on (e.g. the slider) must not repaint from black.
-        if (
-            was_off
-            and ATTR_EFFECT not in kwargs
-            and ATTR_RGB_COLOR not in kwargs
-            and self._segment_state is not None
-        ):
-            if self._effect_before_off in self._effects:
+        # Power-on with no explicit target: resume the effect playing when the
+        # light went off, else repaint the last known color. A bare turn-on
+        # must paint even when the pattern is unknown or black, so the strip
+        # never powers on dark; a brightness-only change while on is left alone.
+        if ATTR_EFFECT not in kwargs and ATTR_RGB_COLOR not in kwargs:
+            if was_off and self._effect_before_off in self._effects:
                 await self._async_apply_effect(
                     self._effect_before_off,
                     start_from_black=True,
@@ -332,13 +330,31 @@ class GoveeBluetoothLight(LightEntity):
                 )
                 self._effect_before_off = None
             else:
-                await self._async_render_target(
-                    self._segment_state,
-                    transition if transition is not None else get_fade_on(),
-                    start_from_black=True,
-                )
+                target = self._resume_target()
+                if was_off or target != self._segment_state:
+                    await self._async_render_target(
+                        target,
+                        transition if transition is not None else get_fade_on(),
+                        start_from_black=was_off,
+                    )
 
         self.async_write_ha_state()
+
+    def _resume_target(self) -> list[list[int]]:
+        """Pattern to repaint on a bare turn-on: the last painted pattern, else
+        the last color the device reported, else white. All-black counts as
+        unknown, so the strip never powers on dark."""
+        if self._segment_state is not None and any(
+            any(channel for channel in segment) for segment in self._segment_state
+        ):
+            return self._segment_state
+
+        color = [255, 255, 255]
+        if self._rgb_color is not None:
+            color = list(self._rgb_color)
+        if self._is_segmented:
+            return [color] * get_segment_count(self._model)
+        return [color]
 
     async def _async_set_solid_color(
         self,
@@ -495,6 +511,10 @@ class GoveeBluetoothLight(LightEntity):
             if self._current_effect == name:
                 self._current_effect = EFFECT_OFF
             return
+
+        # Track the active effect so any later power-on resumes it.
+        self._effect_before_off = name
+
         if effect_def.get("step"):
             self._effect_task = self.hass.async_create_background_task(
                 self._effect_loop(name), f"govee_ble_effect_{name}"
