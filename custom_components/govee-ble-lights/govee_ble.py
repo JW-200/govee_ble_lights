@@ -62,6 +62,7 @@ class GoveeBLE:
     # BLE connection and packet timing parameters
     BLE_KEEPALIVE_INTERVAL = 1.0  # Seconds between keepalive packets
     BLE_HANDLE_RETRY = 3  # Number of connection retry attempts
+    BLE_CONNECT_TIMEOUT = 10.0  # Cap on one connect(); a hung connect wedges the write lock
 
     @staticmethod
     def _transport_for(client: BleakClient) -> dict:
@@ -215,11 +216,20 @@ class GoveeBLE:
         needed, and record write latency/time for keepalive and diagnostics.
         """
         retry = 0
+        reconnected = False
+
         while not client.is_connected:
             if retry >= GoveeBLE.BLE_HANDLE_RETRY:
                 raise TimeoutError
-            await client.connect()
+
+            await asyncio.wait_for(client.connect(), GoveeBLE.BLE_CONNECT_TIMEOUT)
+            reconnected = True
             retry += 1
+
+        if reconnected:
+            # Reconnecting drops GATT subscriptions; the keepalive loop restores
+            # them via its reconnect callback.
+            GoveeBLE._transport_for(client)["resubscribe"] = True
 
         if log_frame:
             _LOGGER.debug("Writing frame: %s", bytes(frame).hex())
@@ -259,15 +269,23 @@ class GoveeBLE:
 
             try:
                 if not client.is_connected:
-                    await client.connect()
+                    await asyncio.wait_for(
+                        client.connect(), GoveeBLE.BLE_CONNECT_TIMEOUT
+                    )
+                    # GATT subscriptions are lost on disconnect; restore them
+                    # when the link comes back.
+                    GoveeBLE._transport_for(client)["resubscribe"] = True
 
-                    # GATT subscriptions are lost on disconnect, so restore
-                    # them when the link comes back.
-                    if reconnect_callback is not None:
-                        try:
-                            await reconnect_callback()
-                        except Exception as cb_err:
-                            _LOGGER.debug("Reconnect callback failed: %s", cb_err)
+                # A write may have reconnected the link itself; re-subscribe
+                # whenever it came back, whoever restored it.
+                if (
+                    reconnect_callback is not None
+                    and GoveeBLE._transport_for(client).pop("resubscribe", False)
+                ):
+                    try:
+                        await reconnect_callback()
+                    except Exception as cb_err:
+                        _LOGGER.debug("Reconnect callback failed: %s", cb_err)
 
                 # Skip pings while writes are flowing; a ping could stall a
                 # frame mid-send.

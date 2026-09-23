@@ -129,5 +129,37 @@ class TestKeepaliveDue(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(GoveeBLE.keepalive_due(client))
 
 
+class TestReconnectResubscribe(unittest.IsolatedAsyncioTestCase):
+    async def test_write_initiated_reconnect_flags_resubscribe(self):
+        # A write reconnecting the link drops the GATT subscriptions; it must
+        # flag them so the keepalive loop restores notifications afterwards.
+        client = FakeClient()
+        client.is_connected = False
+
+        await GoveeBLE.send_writes(
+            client, [GoveeBLE.build_packet(0x33, 0x01, [0x01])]
+        )
+
+        self.assertTrue(GoveeBLE._transport_for(client)["resubscribe"])
+
+    async def test_keepalive_restores_subscriptions_once(self):
+        client = FakeClient()
+        GoveeBLE._transport_for(client)["resubscribe"] = True
+        calls = []
+
+        async def reconnect():
+            calls.append(1)
+
+        with patch.object(GoveeBLE, "BLE_KEEPALIVE_INTERVAL", 0.01):
+            task = asyncio.create_task(GoveeBLE.ensure_connection(client, reconnect))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        # Restored exactly once: the flag is consumed, not retried every tick.
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

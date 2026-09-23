@@ -131,6 +131,11 @@ class GoveeBluetoothLight(LightEntity):
         # Background task advancing an animated effect, if one is running.
         self._effect_task: asyncio.Task | None = None
 
+        # Kept so removal can cancel them: a surviving link holds the device's
+        # single BLE connection and the light stops accepting commands.
+        self._connect_task: asyncio.Task | None = None
+        self._keepalive_task: asyncio.Task | None = None
+
         # Monotonic counters so a newer fade (or turn request) invalidates
         # older in-flight ones. Rapid color changes must never interleave
         # frames from two fades at once (that causes flicker).
@@ -153,7 +158,7 @@ class GoveeBluetoothLight(LightEntity):
 
     async def async_added_to_hass(self) -> None:
         """Start the background connection task when the entity is added."""
-        self.hass.async_create_background_task(
+        self._connect_task = self.hass.async_create_background_task(
             self.try_connect(), "govee_ble_initialize"
         )
 
@@ -595,8 +600,34 @@ class GoveeBluetoothLight(LightEntity):
             pass
 
     async def async_will_remove_from_hass(self) -> None:
-        """Stop the effect animation task when the entity is removed."""
+        """Cancel background tasks and disconnect.
+
+        Govee devices accept one BLE connection, so a link left open by a
+        reload or restart makes the light ignore commands.
+        """
         await self._async_cancel_effect_task()
+
+        tasks = [
+            task
+            for task in (self._keepalive_task, self._connect_task)
+            if task is not None
+        ]
+        self._keepalive_task = None
+        self._connect_task = None
+
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        if self._client is not None:
+            try:
+                await self._client.disconnect()
+            except Exception as err:
+                _LOGGER.debug("Failed to disconnect %s: %s", self.unique_id, err)
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off, fading to black first when a fade-off duration
@@ -714,6 +745,14 @@ class GoveeBluetoothLight(LightEntity):
                 self._state = state
                 changed = True
 
+            if not state and self._current_effect != EFFECT_OFF:
+                # Powered off outside HA: stop the animation, or its next frame
+                # repaints the strip - which repowers it. Resume on turn-on.
+                self._effect_before_off = self._current_effect
+                self._current_effect = EFFECT_OFF
+                await self._async_cancel_effect_task()
+                changed = True
+
         elif cmd == GoveeBLE.LEDCommand.BRIGHTNESS:
             # Convert percentage/absolute depending on the model
             brightness = (
@@ -817,7 +856,7 @@ class GoveeBluetoothLight(LightEntity):
         await self._request_device_state()
 
         # Background task keeping the connection alive for responsive control
-        self.hass.async_create_background_task(
+        self._keepalive_task = self.hass.async_create_background_task(
             GoveeBLE.ensure_connection(self._client, self._reconnect_handler),
             "govee_ble_keepalive",
         )
