@@ -709,31 +709,31 @@ class GoveeBluetoothLight(LightEntity):
         if head != GoveeBLE.LEDFrameType.REQUEST:
             return
 
-        # Color reported for the whole strip (COLOR) or one segment (SEGMENT).
-        if cmd in (GoveeBLE.LEDCommand.COLOR, GoveeBLE.LEDCommand.SEGMENT):
-            if self._current_effect != EFFECT_OFF:
+        # Color replies include the active mode before their RGB bytes.
+        if cmd == GoveeBLE.LEDCommand.COLOR:
+            if self._current_effect != EFFECT_OFF or len(payload) < 5:
                 return
 
-            if cmd == GoveeBLE.LEDCommand.COLOR and len(payload) >= 4:
+            if payload[0] in (GoveeBLE.LEDMode.MANUAL, 0x0D):
                 red, green, blue = payload[1], payload[2], payload[3]
-                self._rgb_color = (red, green, blue)
-
-                # Seed the fade state from the reported color so fades work
-                # before any explicit color has been set.
-                if self._segment_state is None:
-                    self._segment_state = [[red, green, blue]]
-
-            elif cmd == GoveeBLE.LEDCommand.SEGMENT and len(payload) >= 5:
+            elif (
+                payload[0] == GoveeBLE.LEDMode.SEGMENTS
+                and payload[1] == 0x01
+            ):
                 red, green, blue = payload[2], payload[3], payload[4]
-                self._rgb_color = (red, green, blue)
+            else:
+                # Scene/music modes do not contain a solid RGB value.
+                return
 
-                # Seed the fade state from the reported color (assume the
-                # strip is solid until proven otherwise).
-                if self._segment_state is None:
-                    color = [red, green, blue]
-                    self._segment_state = [color] * get_segment_count(self._model)
-
-            self.async_write_ha_state()
+            color = (red, green, blue)
+            if self._segment_state is None:
+                # A status reply gives one color, not the full segment layout.
+                self._segment_state = [list(color)] * (
+                    get_segment_count(self._model) if self._is_segmented else 1
+                )
+            if color != self._rgb_color:
+                self._rgb_color = color
+                self.async_write_ha_state()
             return
 
         # Power and brightness only broadcast state when they actually changed
@@ -808,16 +808,11 @@ class GoveeBluetoothLight(LightEntity):
             )
             await asyncio.sleep(0.05)
 
-            # Color (SEGMENT for segmented models, COLOR otherwise)
-            request_cmd = (
-                GoveeBLE.LEDCommand.SEGMENT
-                if self._is_segmented
-                else GoveeBLE.LEDCommand.COLOR
-            )
+            # AA 05 01 requests the active color/mode on both model types.
             await GoveeBLE.send_single_packet(
                 self._client,
-                request_cmd,
-                [0x01] if self._is_segmented else [],
+                GoveeBLE.LEDCommand.COLOR,
+                [0x01],
                 GoveeBLE.LEDFrameType.REQUEST,
             )
         except Exception as err:
