@@ -62,6 +62,7 @@
     "H618A": {},
     "H618C": {
       "segmented": true,
+      "segments": 15,
       "brightness_percent": true
     },
     "H618E": {},
