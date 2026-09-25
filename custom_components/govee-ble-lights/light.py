@@ -736,6 +736,22 @@ class GoveeBluetoothLight(LightEntity):
                 self.async_write_ha_state()
             return
 
+        if cmd == GoveeBLE.LEDCommand.SEGMENT and self._is_segmented:
+            # AA A5 pages contain four segments each: page number, then
+            # brightness + RGB for each segment. Read the first segment as the
+            # representative HA color; later pages contain the remaining LEDs.
+            if self._current_effect != EFFECT_OFF or len(payload) < 5:
+                return
+            if payload[0] != 0x01:
+                return
+            color = (payload[2], payload[3], payload[4])
+            if self._segment_state is None:
+                self._segment_state = [list(color)] * get_segment_count(self._model)
+            if color != self._rgb_color:
+                self._rgb_color = color
+                self.async_write_ha_state()
+            return
+
         # Power and brightness only broadcast state when they actually changed
         # (the device can repeat status frames, including keepalive echoes).
         changed = False
@@ -815,6 +831,15 @@ class GoveeBluetoothLight(LightEntity):
                 [0x01],
                 GoveeBLE.LEDFrameType.REQUEST,
             )
+            if self._is_segmented:
+                await asyncio.sleep(0.05)
+                # Segment pages carry the actual RGB values on RGBIC strips.
+                await GoveeBLE.send_single_packet(
+                    self._client,
+                    GoveeBLE.LEDCommand.SEGMENT,
+                    [0x01],
+                    GoveeBLE.LEDFrameType.REQUEST,
+                )
         except Exception as err:
             # State initialization is not critical
             _LOGGER.debug("Failed to request initial device state: %s", err)
