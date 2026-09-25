@@ -1,0 +1,70 @@
+{
+  "Native: Sunrise": {
+    "code": 0,
+    "param": ""
+  },
+  "Native: Sunset": {
+    "code": 1,
+    "param": ""
+  },
+  "Native: Meteor": {
+    "code": 205,
+    "param": "ASAgAQAKAgH/CgIAAAACAAADAKr/AP//////AAD6EAH+AA=="
+  },
+  "Native: Meteor shower": {
+    "code": 228,
+    "param": "AyAgAQAKAgH/CgIAAAACAAADANv/AP//////AAD6EAH9ACAAAQAKAgH/CgIAAAACAAADANv/AP//////AAD6EAH8ACBVAQAKAgH/CgIAAAACAAADAAD/AP//////AAD6EAH9AA=="
+  },
+  "Native: Aurora A": {
+    "code": 215,
+    "param": "AiAAAAABAgH/MgEAAAAA+jIDAP8AAP//qv8AAwCAAAAAACMAAAADAgH/GQD6AAAC+gAEf/8A//8AoP//AP//FAH6AAD/AA=="
+  },
+  "Native: Aurora B": {
+    "code": 2289,
+    "param": "BCNAAAABAgH/GQPCCgMC5jIED/8ICwf/B/j//wbpAAL4AQCAACNCAAABAAH/GAO7CgOC5zIE/9Nyy4X/DUv/Uv+ZEgHNAAPkACNEAAABAAH/GAO7CgMC5TIECwf/D/8I/wbpB/j/EAHMAQCAACZGAAABAAH/GAO7CgMC5TIFB/j/Cwf//wbpD/8I3P8REgHdAQCAAA=="
+  },
+  "Native: Starry Sky": {
+    "code": 217,
+    "param": "AiAAAAACAAH/GQF4MjICyDIDAAD/AH7/AAD/AAAAAAAAACMAAg8DAAH/FAH6FBQC/TIEAAD/////AOz/AAD/AAAAAAAAAA=="
+  },
+  "Native: Rainbow A": {
+    "code": 22,
+    "param": ""
+  },
+  "Native: Rainbow B": {
+    "code": 10187,
+    "param": "ASkAAAAHAgH/gQD5FBQD+RQG/wAA/38A//8AAP8AAP//AAD/EAD8AACAAA=="
+  },
+  "Native: Wave A": {
+    "code": 227,
+    "param": "ASMAAAACAAH//wAAAAAC/TIEAAD/AH7/AOz/AAD/EwH8AAAAAA=="
+  },
+  "Native: Wave B": {
+    "code": 2498,
+    "param": "Ax1VAAABAAH//wAAFBQA9wUC/wf9AP//FgD8AwJwAB1QAAABAAH//wAAFBQA9wUC/wf/AP//FAD8AwJwABoAAAABAAFBQQAAFBQAgBQB/6N4AACAAACAAA=="
+  },
+  "Native: Candlelight": {
+    "code": 9,
+    "param": ""
+  },
+  "Native: Fireworks A": {
+    "code": 208,
+    "param": "BCNQAQAZAAH/AAD/MjICZAAE/wAAAAD/AP//////FAD/AAAAACNVAQAZAAH/AAD/MjICZAAE/wAAAAD/AP//////FgD/AAAAACkAAg8FAAH/AAL/MjIC/wIG/wAAAAAA//8AAAAAAAD/AP//AAAAEgH6ACkAAg8FAAH/AAL/MjIC/wIGiwD/AAAA//8AAAAA/3L/AP//AAAAEgH6AA=="
+  },
+  "Native: Fireworks B": {
+    "code": 2028,
+    "param": "AiagAQAMAAH/AAD/PHgCZAAF/wAAiwD/AAD/AP//////FAD/AAAAADIAAh4UAAH/AAL/eDwC/gAJ/wAAAAAA//8AAAAAAAD/AAAAAP//AAAAiwD/AAAAEgP6AA=="
+  },
+  "Native: Breathe": {
+    "code": 10,
+    "param": ""
+  },
+  "Native: Flow A": {
+    "code": 2019,
+    "param": "ASkAAQAyAgH/MgD/MhkB/AAGAP//AKP/AHT/AAAAAAAAAAAAAAAAAAAAAA=="
+  },
+  "Native: Flow B": {
+    "code": 2284,
+    "param": "ASkAAAABAAH//wEB//8B+gEGAP//AEz/AAD/AAAAAAAAAAAAAAB/AAB/AQ=="
+  }
+}

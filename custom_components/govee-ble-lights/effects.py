@@ -105,6 +105,21 @@ def effect_target(
 
     motion = effect.get("motion", "shift")
 
+    if motion == "color_cycle":
+        colors = _effect_colors(effect)
+        color = colors[(offset if direction > 0 else -offset) % len(colors)]
+        return [list(color) for _ in range(count)]
+
+    if motion == "chase":
+        colors = _effect_colors(effect)
+        if len(colors) < 2:
+            raise ValueError("Chase effect needs a base and head color")
+        head = (offset if direction > 0 else -offset) % count
+        return [
+            list(colors[1] if segment == head else colors[0])
+            for segment in range(count)
+        ]
+
     if motion == "pulse":
         colors = _effect_colors(effect)
         low = float(effect.get("pulse_low", 0.25))
@@ -133,7 +148,10 @@ def effect_target(
     return segment_colors(effect, count, offset=shifted)
 
 
-def segments_to_writes(segment_colors: list[list[int]]) -> list[dict]:
+def segments_to_writes(
+    segment_colors: list[list[int]],
+    previous: list[list[int]] | None = None,
+) -> list[dict]:
     """
     Group per-segment colors into the minimal set of mask packets.
 
@@ -149,6 +167,8 @@ def segments_to_writes(segment_colors: list[list[int]]) -> list[dict]:
     """
     writes_by_color: dict[tuple[int, int, int], list[int]] = {}
     for segment, color in enumerate(segment_colors, start=1):
+        if previous is not None and segment <= len(previous) and color == previous[segment - 1]:
+            continue
         key = tuple(color)
         mask = writes_by_color.setdefault(key, [0, 0])
         if segment <= 8:

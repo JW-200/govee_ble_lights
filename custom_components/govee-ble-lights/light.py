@@ -30,6 +30,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.core import HomeAssistant
 
 from .govee_ble import GoveeBLE
+from .native_scenes import build_native_scene_frames, load_native_scenes
 from .const import DOMAIN
 from .effects import effect_target, run_fade, segments_to_writes
 from .models import (
@@ -48,7 +49,7 @@ _LOGGER = logging.getLogger(__name__)
 # Seconds between software-fade frames. Firmware has no native fading, so
 # color changes are interpolated and re-sent at this rate. 30 fps keeps the
 # BLE write load reasonable (a multi-color frame sends one write per color).
-_FADE_INTERVAL = 1 / 30
+_FADE_INTERVAL = 1 / 12
 
 
 async def async_setup_entry(
@@ -116,11 +117,12 @@ class GoveeBluetoothLight(LightEntity):
         self._effects: dict[str, dict] = (
             get_model_effects(self._model) if self._is_segmented else {}
         )
+        self._native_effects = load_native_scenes(self._model)
 
         # Transitions (fades) are always supported so automations can pass
         # light.turn_on/turn_off transition.
         features = LightEntityFeature.TRANSITION
-        if self._effects:
+        if self._effects or self._native_effects:
             features |= LightEntityFeature.EFFECT
         self._attr_supported_features = features
 
@@ -185,9 +187,9 @@ class GoveeBluetoothLight(LightEntity):
     @property
     def effect_list(self) -> list[str]:
         """Return effect names (prefixed with EFFECT_OFF), or [] if unsupported."""
-        if not self._effects:
+        if not self._effects and not self._native_effects:
             return []
-        return [EFFECT_OFF, *sorted(self._effects)]
+        return [EFFECT_OFF, *sorted(self._native_effects), *sorted(self._effects)]
 
     @property
     def effect(self) -> str:
@@ -270,12 +272,11 @@ class GoveeBluetoothLight(LightEntity):
                 await self._async_cancel_effect_task()
                 self._current_effect = EFFECT_OFF
                 self._effect_before_off = None
-                if self._rgb_color is not None:
-                    await self._async_set_solid_color(*self._rgb_color)
-                else:
-                    _LOGGER.debug(
-                        "No previous color to restore for model %s", self._model
-                    )
+                color = self._rgb_color or (255, 255, 255)
+                await self._async_set_solid_color(*color, fade=transition)
+                self._rgb_color = color
+            elif effect in self._native_effects:
+                await self._async_apply_native_effect(effect)
             elif effect in self._effects:
                 await self._async_apply_effect(
                     effect, start_from_black=was_off, fade_override=transition
@@ -285,7 +286,7 @@ class GoveeBluetoothLight(LightEntity):
                     "Effect %r not available for model %s. Available: %s",
                     effect,
                     self._model,
-                    sorted(self._effects),
+                    sorted((*self._effects, *self._native_effects)),
                 )
 
         # Handle brightness setting
@@ -327,7 +328,10 @@ class GoveeBluetoothLight(LightEntity):
         # must paint even when the pattern is unknown or black, so the strip
         # never powers on dark; a brightness-only change while on is left alone.
         if ATTR_EFFECT not in kwargs and ATTR_RGB_COLOR not in kwargs:
-            if was_off and self._effect_before_off in self._effects:
+            if was_off and self._effect_before_off in self._native_effects:
+                await self._async_apply_native_effect(self._effect_before_off)
+                self._effect_before_off = None
+            elif was_off and self._effect_before_off in self._effects:
                 await self._async_apply_effect(
                     self._effect_before_off,
                     start_from_black=True,
@@ -393,11 +397,13 @@ class GoveeBluetoothLight(LightEntity):
             target, duration, start_from_black=start_from_black
         )
 
-    def _writes_for_target(self, target: list[list[int]]) -> list[dict]:
+    def _writes_for_target(
+        self, target: list[list[int]], previous: list[list[int]] | None = None
+    ) -> list[dict]:
         """Convert per-segment colors into BLE writes (mask packets for
         segmented models, a single manual color packet otherwise)."""
         if self._is_segmented:
-            return segments_to_writes(target)
+            return segments_to_writes(target, previous)
         return [{"color": target[0]}]
 
     async def _async_send_writes(self, writes: list[dict]) -> None:
@@ -416,7 +422,11 @@ class GoveeBluetoothLight(LightEntity):
         await GoveeBLE.send_writes(self._client, packets)
 
     async def _async_render_target(
-        self, target: list[list[int]], fade: float, start_from_black: bool = False
+        self,
+        target: list[list[int]],
+        fade: float,
+        start_from_black: bool = False,
+        only_changed: bool = False,
     ) -> None:
         """
         Move the strip toward *target* over *fade* seconds (instant when 0 or
@@ -440,7 +450,14 @@ class GoveeBluetoothLight(LightEntity):
         if start is None or fade <= 0:
             if self._render_epoch != my_epoch:
                 return
-            await self._async_send_writes(self._writes_for_target(target))
+            previous = (
+                self._segment_state
+                if only_changed and not start_from_black and self._is_segmented
+                else None
+            )
+            writes = self._writes_for_target(target, previous)
+            if writes:
+                await self._async_send_writes(writes)
             if self._render_epoch == my_epoch:
                 self._segment_state = target
             return
@@ -467,6 +484,17 @@ class GoveeBluetoothLight(LightEntity):
             lambda: self._render_epoch == my_epoch,
         )
 
+    async def _async_apply_native_effect(self, name: str) -> None:
+        """Upload and activate a scene that runs on the strip itself."""
+        await self._async_cancel_effect_task()
+        self._render_epoch += 1
+        frames = build_native_scene_frames(self._native_effects[name])
+        await GoveeBLE.send_writes(self._client, frames, delay=0.05)
+        self._current_effect = name
+        self._effect_before_off = name
+        # Native scenes can use an arbitrary segment layout.
+        self._segment_state = None
+
     async def _async_apply_effect(
         self,
         name: str,
@@ -489,7 +517,10 @@ class GoveeBluetoothLight(LightEntity):
         my_op_serial = self._op_serial
 
         effect_def = self._effects[name]
-        multicolor = len({tuple(color) for color in effect_def["colors"]}) > 1
+        multicolor = (
+            effect_def.get("motion") != "color_cycle"
+            and len({tuple(color) for color in effect_def["colors"]}) > 1
+        )
         if multicolor:
             # Even an HA transition would flood the BLE link for this pattern.
             fade = 0.0
@@ -541,7 +572,10 @@ class GoveeBluetoothLight(LightEntity):
         # A multicolor BLE frame needs one packet per distinct color. Fading
         # it at 30 fps floods the link and exposes half-painted patterns.
         # Advance these effects one complete pattern at a time.
-        if len({tuple(color) for color in effect_def["colors"]}) > 1:
+        if (
+            effect_def.get("motion") != "color_cycle"
+            and len({tuple(color) for color in effect_def["colors"]}) > 1
+        ):
             return 0.0
         if "fade" in effect_def:
             return float(effect_def["fade"])
@@ -582,7 +616,9 @@ class GoveeBluetoothLight(LightEntity):
                     offset=offset,
                     direction=direction,
                 )
-                await self._async_render_target(target, fade)
+                await self._async_render_target(
+                    target, fade, only_changed=fade <= 0
+                )
             except asyncio.CancelledError:
                 raise
             except Exception as err:
@@ -651,7 +687,10 @@ class GoveeBluetoothLight(LightEntity):
         # Remember an active effect so a later power-on resumes it instead of
         # showing a static snapshot of the last animation frame.
         self._effect_before_off = (
-            self._current_effect if self._current_effect in self._effects else None
+            self._current_effect
+            if self._current_effect in self._effects
+            or self._current_effect in self._native_effects
+            else None
         )
 
         # Stop any running animation; the pattern is no longer guaranteed to

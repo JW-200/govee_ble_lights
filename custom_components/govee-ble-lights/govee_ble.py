@@ -166,11 +166,15 @@ class GoveeBLE:
         )
 
     @staticmethod
-    async def send_writes(client: BleakClient, frames: list, log_frame=True) -> None:
+    async def send_writes(
+        client: BleakClient, frames: list, log_frame=True, delay: float = 0.0
+    ) -> None:
         """Send pre-built frames as one atomic visual update (single lock
         hold, so nothing can interleave between the packets)."""
         async with GoveeBLE._transport_for(client)["lock"]:
-            for frame in frames:
+            for index, frame in enumerate(frames):
+                if index and delay:
+                    await asyncio.sleep(delay)
                 await GoveeBLE._write_frame(client, frame, log_frame)
 
     @staticmethod
