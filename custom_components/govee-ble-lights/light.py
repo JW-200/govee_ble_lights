@@ -187,9 +187,11 @@ class GoveeBluetoothLight(LightEntity):
     @property
     def effect_list(self) -> list[str]:
         """Return effect names (prefixed with EFFECT_OFF), or [] if unsupported."""
-        if not self._effects and not self._native_effects:
-            return []
-        return [EFFECT_OFF, *sorted(self._native_effects), *sorted(self._effects)]
+        if self._native_effects:
+            return [EFFECT_OFF, *sorted(self._native_effects)]
+        if self._effects:
+            return [EFFECT_OFF, *sorted(self._effects)]
+        return []
 
     @property
     def effect(self) -> str:
@@ -626,8 +628,10 @@ class GoveeBluetoothLight(LightEntity):
                 # trying on the next step.
                 _LOGGER.debug("Failed to advance effect %r: %s", name, err)
 
-            # Start a fresh interval if writes took longer than one step.
-            next_step = max(next_step + step, time.monotonic() + step)
+            # Keep the configured cadence unless BLE writes overran it.
+            next_step += step
+            if next_step < time.monotonic():
+                next_step = time.monotonic() + step
 
     async def _async_cancel_effect_task(self) -> None:
         """Cancel and await the effect animation task, if one is running."""
