@@ -489,7 +489,11 @@ class GoveeBluetoothLight(LightEntity):
         my_op_serial = self._op_serial
 
         effect_def = self._effects[name]
-        if fade_override is not None:
+        multicolor = len({tuple(color) for color in effect_def["colors"]}) > 1
+        if multicolor:
+            # Even an HA transition would flood the BLE link for this pattern.
+            fade = 0.0
+        elif fade_override is not None:
             fade = fade_override
         else:
             # Power-on ramps use fade_on; otherwise the effect's own fade (or
@@ -529,13 +533,16 @@ class GoveeBluetoothLight(LightEntity):
         """
         Fade duration for an effect's frame transitions.
 
-        An explicit ``fade`` wins; otherwise animated effects default to the
-        ``step`` interval and static effects to the top-level color fade.
-
-        Keep ``fade`` shorter than ``step`` so the strip settles between
-        shifts; ``fade == step`` never settles (continuous pulse breathing is
-        the intended exception).
+        Multi-color patterns jump between complete frames so BLE writes do not
+        expose intermediate partial patterns. Single-color effects can fade:
+        an explicit fade wins, otherwise animated effects default to the
+        step interval and static effects to the top-level color fade.
         """
+        # A multicolor BLE frame needs one packet per distinct color. Fading
+        # it at 30 fps floods the link and exposes half-painted patterns.
+        # Advance these effects one complete pattern at a time.
+        if len({tuple(color) for color in effect_def["colors"]}) > 1:
+            return 0.0
         if "fade" in effect_def:
             return float(effect_def["fade"])
         step = float(effect_def.get("step") or 0)
@@ -559,13 +566,15 @@ class GoveeBluetoothLight(LightEntity):
         fade = self._effect_fade(effect_def)
         direction = -1 if effect_def.get("direction") == "reverse" else 1
         offset = 0
+        next_step = time.monotonic() + step
         while not self.hass.is_stopping:
-            # Stop when the effect changed or the light was turned off.
+            # The initial pattern was just painted by _async_apply_effect.
+            # Wait a full step before changing it.
+            await asyncio.sleep(max(0.0, next_step - time.monotonic()))
             if self._current_effect != name:
                 return
 
             offset += 1
-            start = time.monotonic()
             try:
                 target = effect_target(
                     effect_def,
@@ -581,11 +590,8 @@ class GoveeBluetoothLight(LightEntity):
                 # trying on the next step.
                 _LOGGER.debug("Failed to advance effect %r: %s", name, err)
 
-            # Hold for the rest of the step (the render may itself take up
-            # to ``fade`` seconds).
-            remaining = step - (time.monotonic() - start)
-            if remaining > 0:
-                await asyncio.sleep(remaining)
+            # Start a fresh interval if writes took longer than one step.
+            next_step = max(next_step + step, time.monotonic() + step)
 
     async def _async_cancel_effect_task(self) -> None:
         """Cancel and await the effect animation task, if one is running."""
