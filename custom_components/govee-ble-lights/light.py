@@ -710,8 +710,8 @@ class GoveeBluetoothLight(LightEntity):
             return
 
         # Color replies include the active mode before their RGB bytes.
-        if cmd == GoveeBLE.LEDCommand.COLOR:
-            if self._current_effect != EFFECT_OFF or len(payload) < 5:
+        if cmd == GoveeBLE.LEDCommand.COLOR and not self._is_segmented:
+            if self._current_effect != EFFECT_OFF or len(payload) < 4:
                 return
 
             if payload[0] in (GoveeBLE.LEDMode.MANUAL, 0x0D):
@@ -737,12 +737,8 @@ class GoveeBluetoothLight(LightEntity):
             return
 
         if cmd == GoveeBLE.LEDCommand.SEGMENT and self._is_segmented:
-            # AA A5 pages contain four segments each: page number, then
-            # brightness + RGB for each segment. Read the first segment as the
-            # representative HA color; later pages contain the remaining LEDs.
+            # The working segmented query reports RGB at payload bytes 2-4.
             if self._current_effect != EFFECT_OFF or len(payload) < 5:
-                return
-            if payload[0] != 0x01:
                 return
             color = (payload[2], payload[3], payload[4])
             if self._segment_state is None:
@@ -824,22 +820,18 @@ class GoveeBluetoothLight(LightEntity):
             )
             await asyncio.sleep(0.05)
 
-            # AA 05 01 requests the active color/mode on both model types.
+            # The device uses a different color query for segmented strips.
+            request_cmd = (
+                GoveeBLE.LEDCommand.SEGMENT
+                if self._is_segmented
+                else GoveeBLE.LEDCommand.COLOR
+            )
             await GoveeBLE.send_single_packet(
                 self._client,
-                GoveeBLE.LEDCommand.COLOR,
-                [0x01],
+                request_cmd,
+                [0x01] if self._is_segmented else [],
                 GoveeBLE.LEDFrameType.REQUEST,
             )
-            if self._is_segmented:
-                await asyncio.sleep(0.05)
-                # Segment pages carry the actual RGB values on RGBIC strips.
-                await GoveeBLE.send_single_packet(
-                    self._client,
-                    GoveeBLE.LEDCommand.SEGMENT,
-                    [0x01],
-                    GoveeBLE.LEDFrameType.REQUEST,
-                )
         except Exception as err:
             # State initialization is not critical
             _LOGGER.debug("Failed to request initial device state: %s", err)
